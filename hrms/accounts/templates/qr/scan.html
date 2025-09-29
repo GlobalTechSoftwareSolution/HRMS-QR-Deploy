@@ -41,7 +41,7 @@
   }
 
   #message {
-    font-size: 1.8em;
+    font-size: 1.4em;
     font-weight: bold;
     min-height: 40px;
     text-align: center;
@@ -60,6 +60,24 @@
     background-color: #f8d7da;
     color: #721c24;
   }
+
+  #scan-again-btn {
+    display: none;
+    margin-top: 15px;
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: background 0.3s ease;
+  }
+
+  #scan-again-btn:hover {
+    background-color: #0056b3;
+  }
 </style>
 </head>
 <body>
@@ -71,56 +89,103 @@
 </div>
 
 <div id="message"></div>
+<button id="scan-again-btn">🔄 Scan Again</button>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 <script>
 const video = document.getElementById('video');
 const message = document.getElementById('message');
+const scanAgainBtn = document.getElementById('scan-again-btn');
 
-// Start camera
-navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-  .then(stream => { video.srcObject = stream; })
-  .catch(err => { 
-      console.error("Camera error:", err); 
-      message.textContent = "Cannot access camera!";
-      message.className = "error";
-  });
+let isProcessing = false;
+let lastScanTime = 0;
+let lastScanned = "";
+let stream = null;
+
+// Start camera with lower resolution (faster)
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
+    });
+    video.srcObject = stream;
+    message.textContent = "";
+    message.className = "";
+    scanAgainBtn.style.display = "none";
+    isProcessing = false;
+    lastScanned = "";
+  } catch (err) {
+    console.error("Camera error:", err);
+    message.textContent = "Cannot access camera!";
+    message.className = "error";
+  }
+}
+
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+  scanAgainBtn.style.display = "inline-block";
+  console.log("Camera stopped after successful scan.");
+}
 
 const canvas = document.createElement('canvas');
 const ctx = canvas.getContext('2d');
 
-function tick() {
-    if(video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        if(code) {
-            const scannedQR = code.data;  // the QR content (email)
-            
-            // Call backend to validate
-            fetch(`/api/accounts/validate-qr/?email=${encodeURIComponent(scannedQR)}`)
-            .then(res => res.json())
-            .then(data => {
-                if(data.valid) {
-                    message.textContent = `✅ ${data.fullname}`;
-                    message.className = "success";
-                } else {
-                    message.textContent = "❌ Invalid QR Code";
-                    message.className = "error";
+function tick(timestamp) {
+    if(video.readyState === video.HAVE_ENOUGH_DATA && !isProcessing) {
+        if (timestamp - lastScanTime > 150) {
+            lastScanTime = timestamp;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+            if(code) {
+                const scannedQR = code.data.trim();
+                if (scannedQR !== lastScanned) {
+                    lastScanned = scannedQR;
+                    handleScan(scannedQR);
                 }
-            })
-            .catch(err => {
-                console.error(err);
-                message.textContent = "❌ Validation failed";
-                message.className = "error";
-            });
+            }
         }
     }
     requestAnimationFrame(tick);
 }
 
+function handleScan(scannedQR) {
+    isProcessing = true;
+    message.textContent = "⏳ Processing...";
+    message.className = "";
+
+    fetch(`/api/accounts/validate_qr/?email=${encodeURIComponent(scannedQR)}`)
+    .then(res => res.json())
+    .then(data => {
+        if (data.valid) {
+            message.textContent = `✅ ${data.fullname} (${data.attendance_status})`;
+            message.className = "success";
+            stopCamera();  // stop camera after success
+        } else {
+            message.textContent = `❌ ${data.message || "Invalid QR Code"}`;
+            message.className = "error";
+            setTimeout(() => { isProcessing = false; lastScanned = ""; }, 2000);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        message.textContent = "❌ Validation failed";
+        message.className = "error";
+        setTimeout(() => { isProcessing = false; lastScanned = ""; }, 2000);
+    });
+}
+
+// Restart scanning when "Scan Again" button is clicked
+scanAgainBtn.addEventListener('click', () => {
+  startCamera();
+});
+
+startCamera();
 tick();
 </script>
 </body>

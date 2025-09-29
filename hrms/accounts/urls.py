@@ -96,6 +96,6 @@ urlpatterns = [
 
     path('employees/email/<str:email>/', get_employee_by_email, name='get_employee_by_email'),
     path('<str:email>/qr/', views.download_qr, name='employee_qr'),
-    path("scan_qr/", qr_scan_view, name="scan-qr"), 
-    path('validate_qr/', views.validate_qr, name='validate-qr'),
+    path("scan_qr/", qr_scan_view, name="scan_qr"), 
+    path('validate_qr/', views.validate_qr, name='validate_qr'),
 ]

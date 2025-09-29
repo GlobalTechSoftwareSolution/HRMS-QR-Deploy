@@ -1130,7 +1130,7 @@ def create_document(request):
         document = Document.objects.create(
             email=user,
             tenth=request.FILES.get("tenth"),
-            twelfth=request.FILES.get("twelfth"),
+            twelth=request.FILES.get("twelth"),
             degree=request.FILES.get("degree"),
             marks_card=request.FILES.get("marks_card"),
             award=request.FILES.get("award"),
@@ -1148,7 +1148,7 @@ def list_documents(request):
             "id": doc.id,
             "email": doc.email.email,
             "tenth": doc.tenth.url if doc.tenth else None,
-            "twelfth": doc.twelfth.url if doc.twelfth else None,
+            "twelth": doc.twelth.url if doc.twelth else None,
             "degree": doc.degree.url if doc.degree else None,
             "marks_card": doc.marks_card.url if doc.marks_card else None,
             "award": doc.award.url if doc.award else None,
@@ -1164,7 +1164,7 @@ def get_document(request, id):
         "id": doc.id,
         "email": doc.email.email,
         "tenth": doc.tenth.url if doc.tenth else None,
-        "twelfth": doc.twelfth.url if doc.twelfth else None,
+        "twelth": doc.twelth.url if doc.twelth else None,
         "degree": doc.degree.url if doc.degree else None,
         "marks_card": doc.marks_card.url if doc.marks_card else None,
         "award": doc.award.url if doc.award else None,
@@ -1178,7 +1178,7 @@ def get_document(request, id):
 def update_document(request, id):
     if request.method in ["POST", "PATCH"]:
         doc = get_object_or_404(Document, id=id)
-        for field in ["tenth", "twelfth", "degree", "marks_card", "award", "resume", "id_proof"]:
+        for field in ["tenth", "twelth", "degree", "marks_card", "award", "resume", "id_proof"]:
             if request.FILES.get(field):
                 setattr(doc, field, request.FILES.get(field))
         doc.save()
@@ -1278,10 +1278,8 @@ def download_qr(request, email):
 def qr_scan_view(request):
     return render(request, "qr/scan.html")
 
-from django.utils import timezone
 from django.http import JsonResponse
 from .models import Employee, Attendance
-from django.contrib.auth.models import User
 import pytz
 from datetime import datetime
 
@@ -1297,33 +1295,47 @@ def validate_qr(request):
     if not employee:
         return JsonResponse({"valid": False, "message": "Employee not found"})
     
-    # Current IST datetime
     now_ist = datetime.now(IST)
     today = now_ist.date()
     current_time = now_ist.time()
 
-    # Mark attendance
-    attendance, created = Attendance.objects.get_or_create(
-        email=employee.email,
-        date=today,
-        defaults={'check_in': current_time}
-    )
+    # Try to fetch today's attendance
+    attendance = Attendance.objects.filter(email=employee.email, date=today).first()
 
-    if not created:
-        # Already checked in today, update check_out if empty
-        if not attendance.check_out:
+    if attendance:
+        if attendance.check_in and attendance.check_out:
+            # Already marked both check-in and check-out
+            return JsonResponse({
+                "valid": False,
+                "fullname": employee.fullname,
+                "attendance_status": "already_marked",
+                "message": "You have already marked check-in and check-out for today."
+            })
+
+        if attendance.check_in and not attendance.check_out:
+            # Mark check-out
             attendance.check_out = current_time
             attendance.save()
-            status = "check_out"
-        else:
-            status = "already_marked"
-    else:
-        status = "check_in"
+            return JsonResponse({
+                "valid": True,
+                "fullname": employee.fullname,
+                "attendance_status": "check_out",
+                "check_in": attendance.check_in,
+                "check_out": attendance.check_out,
+                "message": "Check-out marked successfully."
+            })
 
+    # If no attendance exists yet, create with check-in
+    attendance = Attendance.objects.create(
+        email=employee.email,
+        date=today,
+        check_in=current_time
+    )
     return JsonResponse({
         "valid": True,
         "fullname": employee.fullname,
-        "attendance_status": status,
+        "attendance_status": "check_in",
         "check_in": attendance.check_in,
         "check_out": attendance.check_out,
+        "message": "Check-in marked successfully."
     })

@@ -108,7 +108,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('tenth', models.FileField(blank=True, null=True, upload_to='documents/10th/')),
-                ('twelfth', models.FileField(blank=True, null=True, upload_to='documents/12th/')),
+                ('twelth', models.FileField(blank=True, null=True, upload_to='documents/12th/')),
                 ('degree', models.FileField(blank=True, null=True, upload_to='documents/degree/')),
                 ('marks_card', models.FileField(blank=True, null=True, upload_to='documents/marks_cards/')),
                 ('award', models.FileField(blank=True, null=True, upload_to='documents/awards/')),
