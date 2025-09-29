@@ -95,7 +95,7 @@ urlpatterns = [
     path('delete_award/<int:id>/', delete_award, name='delete_award'),
 
     path('employees/email/<str:email>/', get_employee_by_email, name='get_employee_by_email'),
-    path('employees/<str:email>/qr/', views.download_qr, name='employee_qr'),
-    path("scan-qr/", qr_scan_view, name="scan-qr"), 
-    path('validate-qr/', views.validate_qr, name='validate-qr'),
+    path('<str:email>/qr/', views.download_qr, name='employee_qr'),
+    path("scan_qr/", qr_scan_view, name="scan-qr"), 
+    path('validate_qr/', views.validate_qr, name='validate-qr'),
 ]

@@ -115,12 +115,8 @@ class Employee(models.Model):
     grade = models.CharField(max_length=20, null=True, blank=True)
     languages = models.TextField(null=True, blank=True)
 
-
-
     def __str__(self):
         return f"{self.fullname} (Employee)"
-
-
 
 
 class Document(models.Model):

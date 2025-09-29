@@ -1278,17 +1278,52 @@ def download_qr(request, email):
 def qr_scan_view(request):
     return render(request, "qr/scan.html")
 
-
+from django.utils import timezone
 from django.http import JsonResponse
-from .models import Employee
+from .models import Employee, Attendance
+from django.contrib.auth.models import User
+import pytz
+from datetime import datetime
+
+IST = pytz.timezone('Asia/Kolkata')
 
 def validate_qr(request):
     email = request.GET.get("email")
     if not email:
-        return JsonResponse({"valid": False})
+        return JsonResponse({"valid": False, "message": "No email provided"})
     
+    # Check if employee exists
     employee = Employee.objects.filter(email__email=email).first()
-    if employee:
-        return JsonResponse({"valid": True, "fullname": employee.fullname})
+    if not employee:
+        return JsonResponse({"valid": False, "message": "Employee not found"})
+    
+    # Current IST datetime
+    now_ist = datetime.now(IST)
+    today = now_ist.date()
+    current_time = now_ist.time()
+
+    # Mark attendance
+    attendance, created = Attendance.objects.get_or_create(
+        email=employee.email,
+        date=today,
+        defaults={'check_in': current_time}
+    )
+
+    if not created:
+        # Already checked in today, update check_out if empty
+        if not attendance.check_out:
+            attendance.check_out = current_time
+            attendance.save()
+            status = "check_out"
+        else:
+            status = "already_marked"
     else:
-        return JsonResponse({"valid": False})
+        status = "check_in"
+
+    return JsonResponse({
+        "valid": True,
+        "fullname": employee.fullname,
+        "attendance_status": status,
+        "check_in": attendance.check_in,
+        "check_out": attendance.check_out,
+    })
